@@ -6,4 +6,4 @@ if __name__ == "__main__":
 	app = App.App(vocabulary_name)
 
 	app.read_file()
-	word = app.check_your_vocabulary()
+	word = app.check_your_vocabulary(random=True)

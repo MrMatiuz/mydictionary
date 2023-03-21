@@ -19,7 +19,7 @@ class App:
             ,'Elapsed_time'
         ]
         self.client_activities = []
-        self.batch_size = 20
+        self.batch_size = 5
     
     def read_file(self):
         '''
@@ -61,11 +61,11 @@ class App:
         # Getting random word
         # word_and_translation = self.df.sample(n=1)
         word_and_translation = self.df.loc[indx]
-        
+
         return [
-            word_and_translation['id'].values[0]
-            ,word_and_translation['Word'].values[0]
-            ,word_and_translation['Translation'].values[0]
+            word_and_translation['id']
+            ,word_and_translation['Word']
+            ,word_and_translation['Translation']
         ]
     
     
@@ -131,27 +131,36 @@ class App:
 #             self.df.loc[indx, 'MinTime'] = elapsed_time
             
     
-    def check_your_vocabulary(self):
+    def check_your_vocabulary(self, random=False):
         print(f"Let's start training!")
-        Rand = wr.Ranging()
-        word_indxs = Rand.get_ranked_words('user_activities_logs.csv')
-        word_indxs = self.get_random_indx(word_indxs)
 
+        if random == True:
+            word_indxs = self.get_random_indx()
+        else:
+            Rand = wr.Ranging()
+            word_indxs = Rand.get_ranked_words('user_activities_logs.csv')
+            word_indxs = self.get_random_indx(word_indxs)
+        
         i = 0
         while True :
-            activity = self.check_word(word_indxs)
+            activity = self.check_word(word_indxs[i])
             self.client_activities += [activity]
             answer = self.check_if_answer_was_correct(question='Continue?')
             if answer == False:
                 break
-            if i == self.batch_size:
+            if i == self.batch_size - 1:
                 print("saving logs")
                 self.write_user_activities_logs(self.client_activities)
                 self.client_activities = []
 
-                Rand = wr.Ranging()
-                word_indxs = Rand.get_ranked_words('user_activities_logs.csv')
-                word_indxs = self.get_random_indx(word_indxs)
+                if random == True:
+                    word_indxs = self.get_random_indx()
+                else:
+                    Rand = wr.Ranging()
+                    word_indxs = Rand.get_ranked_words('user_activities_logs.csv')
+                    word_indxs = self.get_random_indx(word_indxs)
+                
+                i = 0
 
             i += 1
                     
