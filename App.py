@@ -69,24 +69,21 @@ class App:
         ]
     
     
-    def check_if_answer_was_correct(self, question):
-        answer = input(f"{question} (y/n): ")
-        if answer == 'y':
-            return True
-        elif answer == 'n':
-            return False
-        else:
-            print(f"Didn't get your answer '{answer}'. Try agane. ", end="")
-            return self.check_if_answer_was_correct(question)
+    def check_if_answer_was_correct(self, question, default=True):
+        if default == True:
+            answer = input(f"{question} (y/n): ")
+            if answer == 'y':
+                return True
+            elif answer == 'n':
+                return False
+            else:
+                print(f"Didn't get your answer '{answer}'. Try agane. ", end="")
+                return self.check_if_answer_was_correct(question)
+        elif default == False:
+            return 'Go Home'
+
     
-    
-    def check_word(self, indx=None, inverse=False):
-        activity = dict(zip(
-            self.activities_params
-            ,[np.nan]*len(self.activities_params)
-        ))
-        
-        word_and_translation = self.get_word_and_translation(indx)
+    def inverse_translation(self, word_and_translation, inverse):
         indx = word_and_translation[0]
         if inverse == True:
             word, translation = word_and_translation[1::-1]
@@ -94,56 +91,65 @@ class App:
             word, translation = word_and_translation[1::]
         else:
             raise TypeError("Only booleans are allowed in inverse")
-            
-        print(f"Word is '{translation}'.\nWhat is its translation? To see translation press Enter.")
-        start = time.time()
-        while True:
-            check_if_press_enter = input()
-            break
+        return indx, word, translation
+
+    def server_asks_about_trainslation(self, indx, word, translation, default=True):
+        if default == True:
+            print(f"Word is '{translation}'.\nWhat is its translation? To see translation press Enter.")
+
+    def client_answers_about_translation(self, indx, word, translation, default=True):
+        if default == True:
+            while True:
+                check_if_press_enter = input()
+                break
         print(f"Translation is '{word}'.", end=' ')
+
+    def elapsed_time(self, indx, word, translation, default):
+        self.server_asks_about_trainslation(indx, word, translation, default)
+        start = time.time()
+        self.client_answers_about_translation(indx, word, translation, default)
         end = time.time()
-        elapsed_time = end - start # time to answer the question
-        
-        answer = self.check_if_answer_was_correct(question='Was your answer correct?')
-        
-        activity['id'] = str(indx)
-        activity['Success'] = str(answer)
-        activity['Elapsed_time'] = str(elapsed_time)
-        
-        return activity
-
-#         # Correstion accuracy metric
-#         if answer == True:
-#             self.df.loc[indx, 'TriesNum'] += 1
-#             self.df.loc[indx, 'SuccessesNum'] += 1
-#         elif answer == False:
-#             self.df.loc[indx, 'TriesNum'] += 1
-#         self.df.loc[indx, 'Probability'] = 1 - self.df.loc[indx, 'SuccessesNum'] / self.df.loc[indx, 'TriesNum']
-                
-#         # Correction distibution params
-#         self.df.loc[indx, 'MeanTime'] = (
-#             (self.df.loc[indx, 'MeanTime'] * (self.df.loc[indx, 'TriesNum'] - 1) + elapsed_time) \
-#             / self.df.loc[indx, 'TriesNum']
-#         )     
-#         if elapsed_time > self.df.loc[indx, 'MaxTime'].values[0]:
-#             self.df.loc[indx, 'MaxTime'] = elapsed_time
-#         elif elapsed_time < self.df.loc[indx, 'MinTime'].values[0]:
-#             self.df.loc[indx, 'MinTime'] = elapsed_time
-            
+        return end - start # time to answer the question
     
-    def check_your_vocabulary(self, random=False):
-        print(f"Let's start training!")
 
+    def check_word(self,  message, bot, indx=None, inverse=False, default=True, chat_func=elapsed_time):
+        activity = dict(zip(
+            self.activities_params
+            ,[np.nan]*len(self.activities_params)
+        ))
+        
+        word_and_translation = self.get_word_and_translation(indx)
+        indx, word, translation = self.inverse_translation(word_and_translation, inverse)
+        chat_func(message, bot, translation)
+        # chat_func(self, indx, word, translation, default)
+        # elapsed_time = chat_func(self, indx, word, translation, default)
+
+        # answer = self.check_if_answer_was_correct(question='Was your answer correct?', default=default)
+        # if answer != 'Go Home':
+        #     activity['id'] = str(indx)
+        #     activity['Success'] = str(answer)
+        #     activity['Elapsed_time'] = str(elapsed_time)
+        #     return activity
+        # else:
+        #     return False
+            
+    def get_indxs(self, random):
         if random == True:
             word_indxs = self.get_random_indx()
         else:
             Rand = wr.Ranging()
             word_indxs = Rand.get_ranked_words('user_activities_logs.csv')
             word_indxs = self.get_random_indx(word_indxs)
+        return word_indxs
+
+
+    def check_your_vocabulary(self, random=False, inverse=False, default=True):
+        print(f"Let's start training!")
+        word_indxs = self.get_indxs(random)
         
         i = 0
         while True :
-            activity = self.check_word(word_indxs[i])
+            activity = self.check_word(word_indxs[i], inverse=inverse, default=default)
             self.client_activities += [activity]
             answer = self.check_if_answer_was_correct(question='Continue?')
             if answer == False:
