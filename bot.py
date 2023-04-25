@@ -2,6 +2,7 @@ import telebot
 from telebot import types
 
 import time
+from openpyxl import load_workbook
 
 import config
 import global_var
@@ -42,11 +43,16 @@ def start_training(message):
         if message.text == 'Training':
             training(message, bot)
         elif message.text == 'Add new word':
-            pass
+            add_new_word(message, bot)
+        elif message.text == 'Correct existing word':
+            bot.send_message(
+                message.chat.id,
+                f"Ups, I can't do it yet"
+            )
     elif global_var.status == 'training_vocabulary':
         training_vocabulary(message, bot)
-    elif global_var.status == 'checking_word':
-        print('============================================================')
+    # elif global_var.status == 'checking_word':
+    #     print('============================================================')
 
 
 def bot_asks_about_trainslation(message, bot, indx, word, translation):
@@ -66,10 +72,8 @@ def client_answers_about_translation(message, bot, indx, word, translation):
     if answer in utils.base_answers.keys():
         if answer == 'Back home':
             app = global_var.app
-            # global_var.__continue__, global_var.answer, global_var.end = False, None, None
             print("saving logs")
             app.write_user_activities_logs(app.client_activities)
-            # app.client_activities = []
             reset_training_process_global_vars()
             go_home(message)
         else:
@@ -93,7 +97,6 @@ def client_answers_about_translation(message, bot, indx, word, translation):
 
 
 def chat_func(message, bot, indx, word, translation):
-    global_var.status = 'checking_word'
     bot_asks_about_trainslation(message, bot, indx, word, translation)
 
     return True, None, None
@@ -121,8 +124,6 @@ def training_process(message, bot, random=False, inverse=False, chat_func=chat_f
 
             global_var.word_indxs = app.get_indxs(random)
             i = 0
-                
-    # self.write_user_activities_logs(self.client_activities)
 
 
 def training_vocabulary(message, bot):
@@ -139,20 +140,25 @@ def training_vocabulary(message, bot):
     # chat_func(message, bot, indx=1, word='qwe', translation='trans')
     # go_home(message)
 
+
 def training_writing():
     print("I can't start writing training yet!")
+
 
 def go_home(message, bot=bot):
     send_welcome(message)
 
+
 func_dict = {
     'Back home': go_home
     ,'Training Vocabulary': training_vocabulary
-    ,'Add new word': training_writing
+    # ,'Add new word': add_new_word
 }
+
 
 def func(message, bot):
     func_dict[message.text](message, bot)
+
 
 def training(message, bot):
     global_var.status = message.text
@@ -166,6 +172,84 @@ def training(message, bot):
         ,reply_markup=markup
     )
     bot.register_next_step_handler(message, func, bot)
+
+def add_new_word(message, bot):
+    def client_enter_word(message, bot):
+        global_var.new_word['word'] = message.text
+        bot_asks_translation(message, bot)
+
+    def client_enter_translation(message, bot):
+        global_var.new_word['translation'] = message.text
+        bot_asks_if_word_and_translation_are_correct(message, bot)
+
+    def client_answer_if_word_and_translation_are_correct(message, bot):
+        answer = message.text
+        if answer == 'Yes':
+            message = bot.send_message(
+                message.chat.id,
+                f"Great!"
+            )
+            save_new_word(global_var.new_word)
+            new_word = {
+                'word': '',
+                'translation': '' 
+            }
+            go_home(message)
+        elif answer == 'No':
+            message = bot.send_message(
+                message.chat.id,
+                f"Try again"
+            )
+            add_new_word(message, bot)
+        elif answer == 'Back home':
+            new_word = {
+                'word': '',
+                'translation': '' 
+            }
+            go_home(message)
+
+    def bot_asks_word(message, bot):
+        message = bot.send_message(
+            message.chat.id,
+            "Enter word",
+            reply_markup = types.ReplyKeyboardRemove(),
+        )
+        bot.register_next_step_handler(message, client_enter_word, bot)
+
+    def bot_asks_translation(message, bot):
+        message = bot.send_message(
+            message.chat.id,
+            "Enter translation",
+        )
+        bot.register_next_step_handler(message, client_enter_translation, bot)
+
+    def bot_asks_if_word_and_translation_are_correct(message, bot):
+        message = bot.send_message(
+            message.chat.id,
+            f"You entered:\nWord: {global_var.new_word['word']}\nTranslation: {global_var.new_word['translation']}\nIs everything right?",
+            reply_markup = utils.generate_markup()
+        )
+        bot.register_next_step_handler(message, client_answer_if_word_and_translation_are_correct, bot)
+
+    def save_new_word(new_word, filename = 'Words.xlsx'):
+        wb = load_workbook(filename=filename)
+        sheet = wb['Sheet1']
+        
+        last_row = sheet.max_row
+        new_id = last_row - 1
+        word = new_word['word']
+        translation = new_word['translation']
+
+        sheet.cell(row=last_row + 1, column=1, value=new_id)
+        sheet.cell(row=last_row + 1, column=2, value=word)
+        sheet.cell(row=last_row + 1, column=3, value=translation)
+        wb.save(filename)
+
+    global_var.status = message.text
+    print(global_var.status)
+
+    bot_asks_word(message, bot)
+
 
 @bot.callback_query_handler(func=lambda call: True)
 def handle_callback_query(call):

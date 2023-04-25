@@ -11,3 +11,8 @@ elapsed_time = None
 i = 0
 __if_client_answered__ = False
 __continue__ = None
+
+new_word = {
+    'word': '',
+    'translation': '' 
+}

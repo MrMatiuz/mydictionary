@@ -197,10 +197,10 @@ class App:
         self.write_user_activities_logs(self.client_activities)
 
     
-    def write_user_activities_logs(self, client_activities, file_name ='user_activities_logs.csv'):
-        isExist = os.path.exists(file_name)
+    def write_user_activities_logs(self, client_activities, filename ='user_activities_logs.csv'):
+        isExist = os.path.exists(filename)
         
-        with open(file_name, 'a') as f:
+        with open(filename, 'a') as f:
             writer = csv.DictWriter(f, fieldnames=self.activities_params, lineterminator="\n")
             if isExist == False:
                 writer.writeheader()
