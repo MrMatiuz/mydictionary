@@ -60,7 +60,7 @@ class Ranging():
 
         return x_last, x_critical
 
-    def get_ranked_words(self, logs_file_name):
+    def get_ranked_words(self, logs_file_name='user_activities_logs.csv'):
         isExist = os.path.exists(logs_file_name)
         if isExist == False:
             return None

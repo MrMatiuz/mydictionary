@@ -78,15 +78,9 @@ class App:
         else:
             print(f"Didn't get your answer '{answer}'. Try agane. ", end="")
             return self.check_if_answer_was_correct(question)
+
     
-    
-    def check_word(self, indx=None, inverse=False):
-        activity = dict(zip(
-            self.activities_params
-            ,[np.nan]*len(self.activities_params)
-        ))
-        
-        word_and_translation = self.get_word_and_translation(indx)
+    def inverse_translation(self, word_and_translation, inverse):
         indx = word_and_translation[0]
         if inverse == True:
             word, translation = word_and_translation[1::-1]
@@ -94,72 +88,108 @@ class App:
             word, translation = word_and_translation[1::]
         else:
             raise TypeError("Only booleans are allowed in inverse")
-            
+        return indx, word, translation
+
+    def server_asks_about_trainslation(self, indx, word, translation):
         print(f"Word is '{translation}'.\nWhat is its translation? To see translation press Enter.")
-        start = time.time()
+        return time.time()
+
+    def client_answers_about_translation(self, indx, word, translation):
         while True:
             check_if_press_enter = input()
             break
         print(f"Translation is '{word}'.", end=' ')
-        end = time.time()
-        elapsed_time = end - start # time to answer the question
-        
+        return time.time()
+
+
+    def elapsed_time(self, indx, word, translation):
+        # client-server chat
+        start = self.server_asks_about_trainslation(indx, word, translation)
+        end = self.client_answers_about_translation(indx, word, translation)
         answer = self.check_if_answer_was_correct(question='Was your answer correct?')
-        
-        activity['id'] = str(indx)
-        activity['Success'] = str(answer)
-        activity['Elapsed_time'] = str(elapsed_time)
-        
-        return activity
+        __continue__ = self.check_if_answer_was_correct(question='Continue?')
+        return __continue__, answer, end - start
 
-#         # Correstion accuracy metric
-#         if answer == True:
-#             self.df.loc[indx, 'TriesNum'] += 1
-#             self.df.loc[indx, 'SuccessesNum'] += 1
-#         elif answer == False:
-#             self.df.loc[indx, 'TriesNum'] += 1
-#         self.df.loc[indx, 'Probability'] = 1 - self.df.loc[indx, 'SuccessesNum'] / self.df.loc[indx, 'TriesNum']
-                
-#         # Correction distibution params
-#         self.df.loc[indx, 'MeanTime'] = (
-#             (self.df.loc[indx, 'MeanTime'] * (self.df.loc[indx, 'TriesNum'] - 1) + elapsed_time) \
-#             / self.df.loc[indx, 'TriesNum']
-#         )     
-#         if elapsed_time > self.df.loc[indx, 'MaxTime'].values[0]:
-#             self.df.loc[indx, 'MaxTime'] = elapsed_time
-#         elif elapsed_time < self.df.loc[indx, 'MinTime'].values[0]:
-#             self.df.loc[indx, 'MinTime'] = elapsed_time
+
+    def check_word(self,  indx, chat_func, inverse, message=None, bot=None):
+        # init activity dict
+        activity = dict(zip(
+            self.activities_params
+            ,[np.nan]*len(self.activities_params)
+        ))
+        
+        word_and_translation = self.get_word_and_translation(indx)
+        indx, word, translation = self.inverse_translation(word_and_translation, inverse)
+        try:
+            __continue__, answer, elapsed_time = chat_func(message, bot, indx, word, translation)
+        except:
+            __continue__, answer, elapsed_time = self.elapsed_time(indx, word, translation)
+        # chat_func(self, indx, word, translation, default)
+        # elapsed_time = chat_func(self, indx, word, translation, default)
+
+        if __continue__ == True:
+            # Write result
+            activity['id'] = str(indx)
+            activity['Success'] = str(answer)
+            activity['Elapsed_time'] = str(elapsed_time)
+            return activity
+        elif __continue__ == False:
+            return False
             
-    
-    def check_your_vocabulary(self, random=False):
-        print(f"Let's start training!")
-
+    def get_indxs(self, random):
         if random == True:
             word_indxs = self.get_random_indx()
         else:
             Rand = wr.Ranging()
             word_indxs = Rand.get_ranked_words('user_activities_logs.csv')
             word_indxs = self.get_random_indx(word_indxs)
+        return word_indxs
+
+
+    # def check_your_vocabulary(self, random=False, inverse=False, default=True):
+    #     print(f"Let's start training!")
+    #     word_indxs = self.get_indxs(random)
         
+    #     i = 0
+    #     while True :
+    #         activity = self.check_word(word_indxs[i], inverse=inverse, default=default)
+    #         self.client_activities += [activity]
+    #         answer = self.check_if_answer_was_correct(question='Continue?')
+    #         if answer == False:
+    #             break
+    #         if i == self.batch_size - 1:
+    #             print("saving logs")
+    #             self.write_user_activities_logs(self.client_activities)
+    #             self.client_activities = []
+
+    #             if random == True:
+    #                 word_indxs = self.get_random_indx()
+    #             else:
+    #                 Rand = wr.Ranging()
+    #                 word_indxs = Rand.get_ranked_words('user_activities_logs.csv')
+    #                 word_indxs = self.get_random_indx(word_indxs)
+                
+    #             i = 0
+
+    #         i += 1
+                    
+    #     self.write_user_activities_logs(self.client_activities)
+
+    def training_vocabulary(self, random=False, inverse=False, chat_func=elapsed_time):
+
+        word_indxs = self.get_indxs(random)
         i = 0
         while True :
-            activity = self.check_word(word_indxs[i])
-            self.client_activities += [activity]
-            answer = self.check_if_answer_was_correct(question='Continue?')
-            if answer == False:
+            activity = self.check_word(indx=word_indxs[i], inverse=inverse, chat_func=chat_func)
+            if activity == False:
                 break
+            self.client_activities += [activity]
             if i == self.batch_size - 1:
                 print("saving logs")
                 self.write_user_activities_logs(self.client_activities)
                 self.client_activities = []
 
-                if random == True:
-                    word_indxs = self.get_random_indx()
-                else:
-                    Rand = wr.Ranging()
-                    word_indxs = Rand.get_ranked_words('user_activities_logs.csv')
-                    word_indxs = self.get_random_indx(word_indxs)
-                
+                word_indxs = self.get_indxs(random)
                 i = 0
 
             i += 1
@@ -167,10 +197,10 @@ class App:
         self.write_user_activities_logs(self.client_activities)
 
     
-    def write_user_activities_logs(self, client_activities, file_name ='user_activities_logs.csv'):
-        isExist = os.path.exists(file_name)
+    def write_user_activities_logs(self, client_activities, filename ='user_activities_logs.csv'):
+        isExist = os.path.exists(filename)
         
-        with open(file_name, 'a') as f:
+        with open(filename, 'a') as f:
             writer = csv.DictWriter(f, fieldnames=self.activities_params, lineterminator="\n")
             if isExist == False:
                 writer.writeheader()
