@@ -4,13 +4,14 @@ from telebot import types
 import time
 from openpyxl import load_workbook
 
-import config
+from not_public import config
 import global_var
 import utils
 
 import App
 
 TOKEN = config.token
+
 bot = telebot.TeleBot(TOKEN)
 
 def reset_training_process_global_vars():
@@ -130,9 +131,8 @@ def training_vocabulary(message, bot):
     global_var.status = 'training_vocabulary'
     print(global_var.status)
     # ================================================================================================
-    vocabulary_name = 'Words.xlsx'
-    app = App.App(vocabulary_name)
-    app.read_file()
+    app = App.App()
+    app.read_vocabulary()
     # ================================================================================================
     global_var.start_training_flag = True
     global_var.app = app
@@ -174,6 +174,13 @@ def training(message, bot):
     bot.register_next_step_handler(message, func, bot)
 
 def add_new_word(message, bot):
+    def bot_save_new_word(new_word, tablename, dbname):
+        global_var.app = App.App()
+        app = global_var.app
+        res = app.is_new_word_in_db(new_word, tablename, dbname)
+        
+        app.save_new_word(new_word, tablename, dbname)
+
     def client_enter_word(message, bot):
         global_var.new_word['word'] = message.text
         bot_asks_translation(message, bot)
@@ -182,19 +189,27 @@ def add_new_word(message, bot):
         global_var.new_word['translation'] = message.text
         bot_asks_if_word_and_translation_are_correct(message, bot)
 
-    def client_answer_if_word_and_translation_are_correct(message, bot):
+    def client_answers_if_word_and_translation_are_correct(message, bot):
         answer = message.text
         if answer == 'Yes':
             message = bot.send_message(
                 message.chat.id,
                 f"Great!"
             )
-            save_new_word(global_var.new_word)
-            new_word = {
-                'word': '',
-                'translation': '' 
-            }
-            go_home(message)
+            # bot_save_new_word(global_var.new_word, app.dict_table_name, app.dbname)
+            global_var.app = App.App()
+            app = global_var.app
+            res, table = app.is_new_word_in_db(global_var.new_word, app.dict_table_name, app.dbname)
+            if res == False:
+                app.save_new_word(global_var.new_word, app.dict_table_name, app.dbname)
+                global_var.new_word = {
+                    'word': '',
+                    'translation': '' 
+                }
+                go_home(message)
+            else:
+                bot_asks_if_client_want_to_add_new_word_that_already_exists(message, bot, table)
+
         elif answer == 'No':
             message = bot.send_message(
                 message.chat.id,
@@ -205,6 +220,28 @@ def add_new_word(message, bot):
             new_word = {
                 'word': '',
                 'translation': '' 
+            }
+            go_home(message)
+
+    def cient_answers_if_client_want_to_add_new_word_that_already_exists(message, bot):
+        answer = message.text
+        message = bot.send_message(
+            message.chat.id,
+            f"Okay!"
+        )
+        if answer == 'Yes':
+            global_var.app = App.App()
+            app = global_var.app
+            app.save_new_word(global_var.new_word, app.dict_table_name, app.dbname)
+            global_var.new_word = {
+                'word': '',
+                'translation': '' 
+            }
+            go_home(message)
+        elif answer == 'No':
+            new_word = {
+                'word': '',
+                'translation': ''
             }
             go_home(message)
 
@@ -224,26 +261,27 @@ def add_new_word(message, bot):
         bot.register_next_step_handler(message, client_enter_translation, bot)
 
     def bot_asks_if_word_and_translation_are_correct(message, bot):
+        text = f"You entered:\nWord: {global_var.new_word['word']}\nTranslation: {global_var.new_word['translation']}\nIs everything right?"
         message = bot.send_message(
             message.chat.id,
-            f"You entered:\nWord: {global_var.new_word['word']}\nTranslation: {global_var.new_word['translation']}\nIs everything right?",
+            text,
             reply_markup = utils.generate_markup()
         )
-        bot.register_next_step_handler(message, client_answer_if_word_and_translation_are_correct, bot)
+        bot.register_next_step_handler(message, client_answers_if_word_and_translation_are_correct, bot)
 
-    def save_new_word(new_word, filename = 'Words.xlsx'):
-        wb = load_workbook(filename=filename)
-        sheet = wb['Sheet1']
-        
-        last_row = sheet.max_row
-        new_id = last_row - 1
-        word = new_word['word']
-        translation = new_word['translation']
+    def bot_asks_if_client_want_to_add_new_word_that_already_exists(message, bot, table):
+        text_i = lambda new_word: f"Word: {new_word['Word']}\nTranslation: {new_word['Translation']}\n"
 
-        sheet.cell(row=last_row + 1, column=1, value=new_id)
-        sheet.cell(row=last_row + 1, column=2, value=word)
-        sheet.cell(row=last_row + 1, column=3, value=translation)
-        wb.save(filename)
+        text = [text_i(table.iloc[i]) for i in range(0, len(table))]
+        text = '\n'.join(text)
+
+        text = f"You have already added this words!\n\n{text}\nDo you really want to add new word?"
+        message = bot.send_message(
+            message.chat.id,
+            text,
+            reply_markup = utils.generate_markup(['Yes', 'No'])
+        )
+        bot.register_next_step_handler(message, cient_answers_if_client_want_to_add_new_word_that_already_exists, bot)
 
     global_var.status = message.text
     print(global_var.status)

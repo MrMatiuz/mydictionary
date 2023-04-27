@@ -1,7 +1,16 @@
 /.DS_Store
 
-/Trash
-/__pycache__
+*.pyc
+__pycache__/
 /.handler-saver
 /.ipynb_checkpoints
+/UseFM/__pycache__
+
+/Trash
 /config.py
+/App.cpython-311.pyc
+/Word_Ranking.cpython-311.pyc
+/not_public
+/data
+/logs
+/mydictionary.db

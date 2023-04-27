@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import csv
 import os
+import sqlite3
 
 
 class Ranging():
@@ -38,8 +39,12 @@ class Ranging():
     #     return x_true / x_all
 
 
-    def get_logs(self, file_name='user_activities_logs.csv'):
-        return pd.read_csv(file_name)
+    def get_logs(self, tablename, dbname):
+        conn = sqlite3.connect(dbname)
+        cursor = conn.cursor()
+        table = pd.read_sql_query(f"SELECT * from {tablename}", conn)
+        conn.close()
+        return table
 
 
     def update_metrisc(self, logs_df=None, logs_grouped_by_id=None):
@@ -60,12 +65,12 @@ class Ranging():
 
         return x_last, x_critical
 
-    def get_ranked_words(self, logs_file_name='user_activities_logs.csv'):
-        isExist = os.path.exists(logs_file_name)
-        if isExist == False:
+    def get_ranked_words(self, tablename, dbname):
+        try:
+            logs_df = self.get_logs(tablename, dbname)
+        except:
             return None
 
-        logs_df = self.get_logs(logs_file_name)
         logs_grouped_by_id = logs_df \
             .groupby(by=['id']) \
             .agg({
@@ -98,7 +103,7 @@ if __name__ == "__main__":
     start = time.time()
     r = Ranging()
     # r.update_metrisc()
-    res = r.get_ranked_words('user_activities_logs.csv')
+    res = r.get_ranked_words(tablename = 'user_activities_logs', dbname = 'mydictionary.db')
     end = time.time()
     print(f"TIME: {end - start} sec.")
     print(res)

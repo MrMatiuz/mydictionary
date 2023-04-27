@@ -4,15 +4,15 @@ import random
 import time
 
 import csv
+import sqlite3
 import os
 
 import Word_Ranking as wr
 # import keyboard
 
+
 class App:
-    def __init__(self, name):
-        self.name = name
-        self.df = None
+    def __init__(self, dict_table_name='dict', logs_table_name='user_activities_logs', dbname='mydictionary.db'):
         self.activities_params = [
             'id'
             ,'Success'
@@ -20,23 +20,48 @@ class App:
         ]
         self.client_activities = []
         self.batch_size = 5
-    
-    def read_file(self):
-        '''
-        Пока не будем работать с базой, будем брать весь датафрейм и его менять,
-        а потом просто перезаливать базу. Позже реализовать алгоритм, который будет выборочно либо добавлять,
-        либо перезаписывать данные по конекретным колонкам
-        '''
-        self.df = pd.read_excel(self.name)
+        self.dict_table_name = dict_table_name
+        self.logs_table_name = logs_table_name
+        self.dbname = dbname
 
-        self.df['Word'] = self.df['Word'].apply(lambda x: x.capitalize())
-        self.df['Translation'] = self.df['Translation'].apply(lambda x: x.capitalize())
-        self.df.fillna(0, inplace=True)
+        self.df = self.read_vocabulary(self.dict_table_name, self.dbname)
 
 
-    def push_new_word(self):
-        word = input("Enter word: ")
-        translation = input("Enter translation: ")
+    def drop_file_extension(self, filename):
+        filename_inv = filename[::-1]
+        dot_pos = filename_inv.find('.') + 1
+
+        if dot_pos == 0:
+            return filename
+        else:
+            return filename[:-dot_pos]
+
+
+    def read_vocabulary(self, tablename, dbname):
+        tablename = self.drop_file_extension(tablename)
+        conn = sqlite3.connect(dbname)
+        cursor = conn.cursor()
+        table = pd.read_sql_query(f"SELECT * from {tablename}", conn)
+        conn.close()
+        return table
+
+
+    # def read_vocabulary(self):
+    #     '''
+    #     Пока не будем работать с базой, будем брать весь датафрейм и его менять,
+    #     а потом просто перезаливать базу. Позже реализовать алгоритм, который будет выборочно либо добавлять,
+    #     либо перезаписывать данные по конекретным колонкам
+    #     '''
+    #     self.df = pd.read_excel(self.name)
+
+    #     self.df['Word'] = self.df['Word'].apply(lambda x: x.capitalize())
+    #     self.df['Translation'] = self.df['Translation'].apply(lambda x: x.capitalize())
+    #     self.df.fillna(0, inplace=True)
+
+
+    # def push_new_word(self):
+    #     word = input("Enter word: ")
+    #     translation = input("Enter translation: ")
 
 
     def get_random_indx(self, indxs=None):
@@ -129,9 +154,9 @@ class App:
 
         if __continue__ == True:
             # Write result
-            activity['id'] = str(indx)
-            activity['Success'] = str(answer)
-            activity['Elapsed_time'] = str(elapsed_time)
+            activity['id'] = int(indx)
+            activity['Success'] = int(answer)
+            activity['Elapsed_time'] = elapsed_time
             return activity
         elif __continue__ == False:
             return False
@@ -141,39 +166,10 @@ class App:
             word_indxs = self.get_random_indx()
         else:
             Rand = wr.Ranging()
-            word_indxs = Rand.get_ranked_words('user_activities_logs.csv')
+            word_indxs = Rand.get_ranked_words(tablename=self.logs_table_name, dbname=self.dbname)
             word_indxs = self.get_random_indx(word_indxs)
         return word_indxs
 
-
-    # def check_your_vocabulary(self, random=False, inverse=False, default=True):
-    #     print(f"Let's start training!")
-    #     word_indxs = self.get_indxs(random)
-        
-    #     i = 0
-    #     while True :
-    #         activity = self.check_word(word_indxs[i], inverse=inverse, default=default)
-    #         self.client_activities += [activity]
-    #         answer = self.check_if_answer_was_correct(question='Continue?')
-    #         if answer == False:
-    #             break
-    #         if i == self.batch_size - 1:
-    #             print("saving logs")
-    #             self.write_user_activities_logs(self.client_activities)
-    #             self.client_activities = []
-
-    #             if random == True:
-    #                 word_indxs = self.get_random_indx()
-    #             else:
-    #                 Rand = wr.Ranging()
-    #                 word_indxs = Rand.get_ranked_words('user_activities_logs.csv')
-    #                 word_indxs = self.get_random_indx(word_indxs)
-                
-    #             i = 0
-
-    #         i += 1
-                    
-    #     self.write_user_activities_logs(self.client_activities)
 
     def training_vocabulary(self, random=False, inverse=False, chat_func=elapsed_time):
 
@@ -194,23 +190,56 @@ class App:
 
             i += 1
                     
-        self.write_user_activities_logs(self.client_activities)
+        self.write_user_activities_logs(self.client_activities, self.logs_table_name, self.dbname)
 
     
-    def write_user_activities_logs(self, client_activities, filename ='user_activities_logs.csv'):
-        isExist = os.path.exists(filename)
+    def write_user_activities_logs(self, client_activities, tablename, dbname):
+        conn = sqlite3.connect(dbname)
+        cursor = conn.cursor()
+        for row in client_activities:
+            cursor.execute(
+                f"INSERT INTO {tablename} (id, Success, Elapsed_time) VALUES (?, ?, ?)", 
+                (row['id'], row['Success'], row['Elapsed_time'])
+            )
+        conn.commit()
+        conn.close()
+
+    def is_new_word_in_db(self, new_word, tablename, dbname):
+        conn = sqlite3.connect(dbname)
+        cursor = conn.cursor()
         
-        with open(filename, 'a') as f:
-            writer = csv.DictWriter(f, fieldnames=self.activities_params, lineterminator="\n")
-            if isExist == False:
-                writer.writeheader()
-            
-            f.write('\n')
-            for row in client_activities:
-                writer.writerow(row)
-            
-            f.close()
+        word = new_word['word'].lower()
+        for s in ['to ', 'a ']:
+            word = word.replace(s, '')
 
-    
-    def save_file(self):
-        self.df.to_excel(self.name)
+        query = (
+            f"SELECT * \
+            FROM {tablename} \
+            WHERE \
+                Word LIKE '%{word}' \
+                or Word LIKE '%{word} %'"
+        )
+        table = pd.read_sql_query(query, conn)
+        if table.empty:
+            return False, None
+        else:
+            return True, table
+
+
+    def save_new_word(self, new_word, tablename, dbname):
+        conn = sqlite3.connect(dbname)
+        cursor = conn.cursor()
+        query = f"SELECT max(id) FROM {tablename}"
+
+        last_row = cursor.execute(query).fetchone()[0]
+        new_id = last_row + 1
+        word = new_word['word']
+        translation = new_word['translation']
+
+        query = f"INSERT INTO {tablename} (id, Word, Translation) VALUES (?, ?, ?)"
+        cursor.execute(
+                query, 
+                (new_id, word, translation)
+            )
+        conn.commit()
+        conn.close()
