@@ -146,20 +146,23 @@ class App:
         word_and_translation = self.get_word_and_translation(indx)
         indx, word, translation = self.inverse_translation(word_and_translation, inverse)
         try:
-            __continue__, answer, elapsed_time = chat_func(message, bot, indx, word, translation)
+            chat_func(message, bot, indx, word, translation)
+            activity['id'] = int(indx)
+            return activity
+
         except:
             __continue__, answer, elapsed_time = self.elapsed_time(indx, word, translation)
-        # chat_func(self, indx, word, translation, default)
-        # elapsed_time = chat_func(self, indx, word, translation, default)
-
-        if __continue__ == True:
-            # Write result
             activity['id'] = int(indx)
             activity['Success'] = int(answer)
             activity['Elapsed_time'] = elapsed_time
-            return activity
-        elif __continue__ == False:
-            return False
+            return activity, __continue__
+        # chat_func(self, indx, word, translation, default)
+        # elapsed_time = chat_func(self, indx, word, translation, default)
+
+        # if __continue__ == True:
+        #     # Write result
+
+        
             
     def get_indxs(self, random):
         if random == True:
@@ -176,13 +179,13 @@ class App:
         word_indxs = self.get_indxs(random)
         i = 0
         while True :
-            activity = self.check_word(indx=word_indxs[i], inverse=inverse, chat_func=chat_func)
-            if activity == False:
+            activity, __continue__ = self.check_word(indx=word_indxs[i], inverse=inverse, chat_func=chat_func)
+            if __continue__ == False:
                 break
             self.client_activities += [activity]
             if i == self.batch_size - 1:
                 print("saving logs")
-                self.write_user_activities_logs(self.client_activities)
+                self.write_user_activities_logs(self.client_activities, self.logs_table_name, self.dbname)
                 self.client_activities = []
 
                 word_indxs = self.get_indxs(random)
@@ -220,10 +223,12 @@ class App:
                 or Word LIKE '%{word} %'"
         )
         table = pd.read_sql_query(query, conn)
+        conn.close()
         if table.empty:
             return False, None
         else:
             return True, table
+        
 
 
     def save_new_word(self, new_word, tablename, dbname):

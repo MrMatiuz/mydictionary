@@ -74,7 +74,7 @@ def client_answers_about_translation(message, bot, indx, word, translation):
         if answer == 'Back home':
             app = global_var.app
             print("saving logs")
-            app.write_user_activities_logs(app.client_activities)
+            app.write_user_activities_logs(app.client_activities, app.logs_table_name, app.dbname)
             reset_training_process_global_vars()
             go_home(message)
         else:
@@ -89,7 +89,7 @@ def client_answers_about_translation(message, bot, indx, word, translation):
             
             global_var.start_training_flag = False
             global_var.i += 1
-            global_var.__continue__, global_var.answer, global_var.end = True, utils.true_false_answer[answer], time.time()
+            global_var.__continue__, global_var.answer, global_var.end = True, int(utils.true_false_answer[answer]), time.time()
             global_var.elapsed_time = global_var.end - global_var.start
             global_var.__if_client_answered__ = True
             
@@ -99,8 +99,6 @@ def client_answers_about_translation(message, bot, indx, word, translation):
 
 def chat_func(message, bot, indx, word, translation):
     bot_asks_about_trainslation(message, bot, indx, word, translation)
-
-    return True, None, None
 
 
 def training_process(message, bot, random=False, inverse=False, chat_func=chat_func):
@@ -112,6 +110,7 @@ def training_process(message, bot, random=False, inverse=False, chat_func=chat_f
     activity = app.check_word(message=message, bot=bot, indx=indx, inverse=inverse, chat_func=chat_func)
 
     if global_var.__if_client_answered__ == True:
+
         activity['Success'] = str(global_var.answer)
         activity['Elapsed_time'] = str(global_var.elapsed_time)
 
@@ -120,7 +119,7 @@ def training_process(message, bot, random=False, inverse=False, chat_func=chat_f
 
         if global_var.i == app.batch_size - 1:
             print("saving logs")
-            app.write_user_activities_logs(app.client_activities)
+            app.write_user_activities_logs(app.client_activities, app.logs_table_name, app.dbname)
             app.client_activities = []
 
             global_var.word_indxs = app.get_indxs(random)
@@ -132,7 +131,7 @@ def training_vocabulary(message, bot):
     print(global_var.status)
     # ================================================================================================
     app = App.App()
-    app.read_vocabulary()
+    app.read_vocabulary(app.dict_table_name, app.dbname)
     # ================================================================================================
     global_var.start_training_flag = True
     global_var.app = app
